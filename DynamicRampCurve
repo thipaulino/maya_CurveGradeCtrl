@@ -1,0 +1,87 @@
+// CURVE CLUSTER DYNAMIC RAMP WIEGHT TOOL v0.1
+// crated by Thiago Paulino - tpaulino.com - 2018
+
+// Pre-declaring variables to avoid illigal redeclaration
+string $getSel[];
+string $shapeQ[];
+
+string $shapeName;
+
+string $clsName[];
+
+float $curveDeg;
+float $curveSpa;
+float $cvCount;
+
+string $newExpr2;
+
+string $rampNode;
+string $plcd2dTx;
+
+string $cnnctList;
+
+// Get curve information - start
+// Get shape curve shape node name 
+$getSel = `ls -sl`;
+$shapeQ = `listRelatives -s $getSel`;
+
+$shapeName = $shapeQ[0];
+$clsName = `listConnections -type cluster $shapeName`;
+
+// Get degrees and spans to calculte CV's
+$curveDeg = `getAttr ($shapeName + ".degree")`;
+$curveSpa = `getAttr ($shapeName + ".spans")`;
+
+// CV's = degrees + spans
+$cvCount = $curveDeg + $curveSpa;
+
+// Creates and connects ramp node
+$rampNode = `shadingNode -asTexture -name ($getSel[0] + "_" + $clsName[0] + "_ramp") ramp`;
+$plcd2dTx = `shadingNode -asUtility place2dTexture`;
+
+
+connectAttr -f ($plcd2dTx + ".outUV") ($rampNode + ".uvCoord");
+connectAttr -f ($plcd2dTx + ".outUvFilterSize") ($rampNode + ".uvFilterSize");
+
+// Creates connection lists for expression printing
+for ($y=0; $y<= ($cvCount - 1); $y++){
+    $cnnctList += ($clsName[0] + ".weightList[0].weights[" + $y + "] = $cvValue[" + $y + "];\n");
+}
+
+// Stores code in string for expression printing
+$newExpr2 = "vector $exprTrigger = " + $rampNode + ".outAlpha; \n\
+float $cvValue[]; \n\
+// cvCount is dynamic from curve \n\
+float $cvCount = " + ($cvCount - 1) + "; \n \n\
+for ($y=0; $y<=$cvCount; $y++){ \n\
+	float $j = $y; \n\
+	float $pos = ($j/$cvCount); \n\
+  	float $value[] = `colorAtPoint -o A -u 0.5 -v $pos " + $rampNode + "`; \n\
+	$cvValue[$y] = $value[0]; \n\
+} \n \n";
+
+print ($newExpr2 + $cnnctList);
+
+expression -s ($newExpr2 + $cnnctList) -o "" -n ($getSel[0] + "_" + $clsName[0] + "_expr") -ae 0 -uc all ;
+
+// clearing variable to avoid acumulation - Send to the end
+$cnnctList = "";
+$newExpr2 = "";
+
+select -r $rampNode ;
+
+/*
+DEVELOPMENT LIST --
+
+- Add conditional for multiple clusters on next version
+
+- Add interface for:
+--- Curve rebuild CV number
+--- Deleting native extra 2 CV's 
+
+- Apply to all curves in group
+
+- Create controls
+
+- Interpolation method on initialize
+*/
